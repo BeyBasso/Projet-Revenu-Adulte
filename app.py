@@ -45,7 +45,7 @@ def load_data():
 st.set_page_config(page_title="Adult Income Analysis", page_icon="💰", layout="wide")
 df = load_data()
 
-# Navigation
+# Navigation - Les noms ici doivent correspondre exactement aux conditions if/elif
 st.sidebar.title("📌 Navigation")
 page = st.sidebar.radio("Sélectionnez une page :", 
     ["🏠 Accueil", "📊 Exploration des Données", "⚠️ Détection de Biais", "🤖 Modélisation"])
@@ -90,12 +90,12 @@ elif page == "📊 Exploration des Données":
     # 4 KPIs Obligatoires
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.metric("Total Lignes", len(df_filtered))
+        st.metric("Total Lignes", f"{len(df_filtered):,}")
     with k2:
         st.metric("Total Colonnes", df_filtered.shape[1])
     with k3:
         missing_rate = (df_filtered == '?').sum().sum() / df_filtered.size * 100
-        st.metric("Taux de '?'", f"{missing_rate:.2f}%")
+        st.metric("Taux de valeur manquante", f"{missing_rate:.2f}%")
     with k4:
         st_rate = (df_filtered['target'] == 1).mean() * 100
         st.metric("Taux >50K", f"{st_rate:.1f}%")
@@ -113,23 +113,26 @@ elif page == "📊 Exploration des Données":
     col_v1, col_v2 = st.columns(2)
     with col_v1:
         st.subheader("1. Distribution de la variable cible")
-        st.plotly_chart(px.histogram(df_filtered, x="income", color="income"), use_container_width=True)
+        st.plotly_chart(px.histogram(df_filtered, x="income", color="income", color_discrete_sequence=['#636EFA', '#EF553B']), use_container_width=True)
     
     with col_v2:
         st.subheader("2. Comparaison des revenus par Genre")
-        st.plotly_chart(px.histogram(df_filtered, x="gender", color="income", barmode="group"), use_container_width=True)
+        st.plotly_chart(px.histogram(df_filtered, x="gender", color="income", barmode="group", color_discrete_sequence=['#636EFA', '#EF553B']), use_container_width=True)
 
     col_v3, col_v4 = st.columns(2)
     with col_v3:
-        st.subheader("3. Heatmap des corrélations")
-        corr = df_filtered.select_dtypes(include=[np.number]).corr()
-        st.plotly_chart(go.Figure(data=go.Heatmap(z=corr.values, x=corr.columns, y=corr.columns, colorscale='RdBu')), use_container_width=True)
+        st.subheader("3. Distribution de l'âge par classe de revenu")
+        st.plotly_chart(px.box(df_filtered, x="income", y="age", color="income", color_discrete_sequence=['#636EFA', '#EF553B']), use_container_width=True)
     
     with col_v4:
         st.subheader("4. Proportions par Lien de parenté")
         st.plotly_chart(px.pie(df_filtered, names='relationship', hole=0.3), use_container_width=True)
 
-    with st.expander("📄 Aperçu des données"):
+    st.subheader("5. Matrice de corrélation (Variables numériques)")
+    corr = df_filtered.select_dtypes(include=[np.number]).corr()
+    st.plotly_chart(go.Figure(data=go.Heatmap(z=corr.values, x=corr.columns, y=corr.columns, colorscale='RdBu', zmin=-1, zmax=1)), use_container_width=True)
+
+    with st.expander("🔍 Aperçu des données filtrées"):
         st.dataframe(df_filtered.head(50))
 
 # =========================================================================
@@ -138,12 +141,10 @@ elif page == "📊 Exploration des Données":
 elif page == "⚠️ Détection de Biais":
     st.title("⚠️ Détection de Biais")
 
-    # Visualisation 1 : Distribution cible
     st.subheader("Visualisation 1 : Distribution de la variable cible")
     fig1 = px.histogram(df, x="target", title="Distribution de la cible (0: <=50K, 1: >50K)")
     st.plotly_chart(fig1, use_container_width=True)
 
-    # Visualisation 2 : Comparaison par groupe
     st.subheader("Visualisation 2 : Comparaison par groupe (Genre)")
     df_grouped = df.groupby(['gender', 'target']).size().reset_index(name='count')
     fig2 = px.bar(df_grouped, x='gender', y='count', color='target', barmode="group", title="Répartition par Genre")
@@ -151,7 +152,6 @@ elif page == "⚠️ Détection de Biais":
 
     st.divider()
 
-    # 1. Explication
     st.header("1. Explication du biais analysé")
     st.markdown("""
     - **Attribut sensible** : Genre (`gender`).
@@ -159,8 +159,7 @@ elif page == "⚠️ Détection de Biais":
     gagnent moins en moyenne, il risque de pénaliser systématiquement les femmes dans des processus automatisés de recrutement ou de crédit.
     """)
 
-    # 2. Métriques de Fairness
-    st.header("2. Métriques de Fairness")
+    st.header("2. Métriques de Fairness (Données)")
     col_m1, col_m2 = st.columns(2)
     
     res_dp = demographic_parity_difference(df['target'].values, df['target'].values, df['gender'].values)
@@ -171,17 +170,15 @@ elif page == "⚠️ Détection de Biais":
     with col_m2:
         st.metric("Ratio d'Impact Disproportionné (DI)", f"{res_di['ratio']:.2f}")
 
-    # 3. Visualisation des résultats
-    st.subheader("3. Taux de hauts revenus par Genre")
+    st.subheader("3. Taux de revenus réels les plus élevés par Genre")
     rates = df.groupby('gender')['target'].mean().reset_index()
-    st.plotly_chart(px.bar(rates, x='gender', y='target', title="Taux de succès par groupe"), use_container_width=True)
+    st.plotly_chart(px.bar(rates, x='gender', y='target', title="Taux de succès (>50K) par Genre", color='gender'), use_container_width=True)
 
-    # 4. Interprétation
     st.header("4. Interprétation")
     st.markdown(f"""
-    Le biais détecté est significatif : le ratio DI de **{res_di['ratio']:.2f}** est bien inférieur au seuil de **0.80**. 
-    Cela signifie que le groupe **Femme** est défavorisé. L'impact réel serait une discrimination systémique 
-    réduisant les opportunités financières des femmes. Il est recommandé de rééquilibrer le dataset avant l'entraînement.
+    Le biais détecté est significatif car le ratio DI de **{res_di['ratio']:.2f}** est bien inférieur au seuil recommandé de **0.80**. 
+    Cela signifie que le groupe **Femme** est défavorisé dans les données historiques. 
+    **Impact réel :** Sans correction, une IA reproduirait l'écart salarial de 1994 en pénalisant les femmes d'aujourd'hui.
     """)
 
 # =========================================================================
@@ -190,8 +187,7 @@ elif page == "⚠️ Détection de Biais":
 elif page == "🤖 Modélisation":
     st.title("🤖 Modélisation et Évaluation")
     
-    with st.spinner("Entraînement du modèle..."):
-        # Pre-processing simple
+    with st.spinner("Entraînement du modèle (Logistic Regression)..."):
         feat = ['age', 'educational-num', 'hours-per-week', 'gender']
         X = pd.get_dummies(df[feat], drop_first=True)
         y = df['target']
@@ -204,14 +200,12 @@ elif page == "🤖 Modélisation":
         clf = LogisticRegression().fit(X_train_scaled, y_train)
         y_pred = clf.predict(X_test_scaled)
 
-    # Performances Globales
     st.header("1. Performances Globales")
     c_p1, c_p2, c_p3 = st.columns(3)
     c_p1.metric("Accuracy", f"{accuracy_score(y_test, y_pred):.2%}")
     c_p2.metric("Precision", f"{precision_score(y_test, y_pred):.2%}")
     c_p3.metric("Recall", f"{recall_score(y_test, y_pred):.2%}")
 
-    # Fairness sur prédictions
     st.header("2. Fairness sur les Prédictions")
     test_df = X_test.copy()
     test_df['y_pred'] = y_pred
@@ -219,13 +213,12 @@ elif page == "🤖 Modélisation":
     rate_f = test_df[test_df['gender_Male'] == 0]['y_pred'].mean()
     st.metric("Ratio DI (Prédictions)", f"{(rate_f/rate_m):.2f}")
 
-    # Matrices de Confusion par Genre
     st.header("3. Matrices de Confusion par Groupe")
     col_cm1, col_cm2 = st.columns(2)
     for g, col, lab in [(1, col_cm1, "Homme"), (0, col_cm2, "Femme")]:
-        subset = test_df[test_df['gender_Male'] == g]
-        cm = confusion_matrix(y_test[X_test['gender_Male'] == g], subset['y_pred'])
+        subset_mask = (X_test['gender_Male'] == g)
+        cm = confusion_matrix(y_test[subset_mask], y_pred[subset_mask])
         col.write(f"**Matrice : {lab}**")
-        col.plotly_chart(go.Figure(data=go.Heatmap(z=cm, x=['P <=50K', 'P >50K'], y=['V <=50K', 'V >50K'], colorscale='YlGnBu')), use_container_width=True)
+        col.plotly_chart(go.Figure(data=go.Heatmap(z=cm, x=['P <=50K', 'P >50K'], y=['V <=50K', 'V >50K'], colorscale='YlGnBu', text=cm, texttemplate="%{text}")), use_container_width=True)
 
     st.info("Le modèle préserve le biais : il prédit beaucoup moins souvent un haut revenu pour les femmes.")
