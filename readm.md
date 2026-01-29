@@ -14,7 +14,7 @@ L'application permet aux utilisateurs d'explorer visuellement le dataset, de mes
 
 ## 📁 Dataset
 
-- Source : Dataset "UCI Adult Income" (Census Income 1994).
+- Source : [Dataset "UCI Adult Income" (Census Income 1994).](https://www.kaggle.com/datasets/wenruliu/adult-income-dataset/data)
 
 - Taille : 48 842 lignes, 15 colonnes.
 
